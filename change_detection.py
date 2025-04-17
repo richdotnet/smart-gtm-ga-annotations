@@ -5,100 +5,181 @@ IGNORE_KEYS = {
     'variable': {'name', 'fingerprint', 'notes', 'parentFolderId', 'formatValue', 'tagManagerUrl'}
 }
 
+def compare_elements(old_element, new_element, element_type=None):
+    """
+    Compare two GTM elements to determine if they are different, ignoring specified keys.
+    """
+    ignore_keys = IGNORE_KEYS.get(element_type, set()) if element_type else set()
+    old_filtered = {k: v for k, v in old_element.items() if k not in ignore_keys}
+    new_filtered = {k: v for k, v in new_element.items() if k not in ignore_keys}
+    return old_filtered != new_filtered
+
 def detect_gtm_changes(old_version, new_version):
-    """Detect changes between two GTM container versions."""
+    """
+    Detect changes between two GTM container versions.
+    Updated to support server container elements (clients, transformations).
+    """
     changes = {
-        'added_elements': {'tags': [], 'variables': [], 'triggers': []},
-        'modified_elements': {'tags': [], 'variables': [], 'triggers': []},
-        'deleted_elements': {'tags': [], 'variables': [], 'triggers': []}
+        'added_elements': {
+            'tags': [],
+            'triggers': [],
+            'variables': [],
+            'clients': [],        # Server container element
+            'transformations': [] # Server container element
+        },
+        'modified_elements': {
+            'tags': [],
+            'triggers': [],
+            'variables': [],
+            'clients': [],        # Server container element
+            'transformations': [] # Server container element
+        },
+        'deleted_elements': {
+            'tags': [],
+            'triggers': [],
+            'variables': [],
+            'clients': [],        # Server container element
+            'transformations': [] # Server container element
+        }
     }
     
-    # Process tag changes - store only IDs not entire objects
-    old_tags = {tag.get('tagId'): tag.get('fingerprint') for tag in old_version.get('tag', [])}
-    new_tags = {tag.get('tagId'): tag.get('fingerprint') for tag in new_version.get('tag', [])}
+    # Detect tag changes
+    old_tags = {tag.get('tagId'): tag for tag in old_version.get('tag', [])}
+    new_tags = {tag.get('tagId'): tag for tag in new_version.get('tag', [])}
     
-    # Find added tags (store IDs only)
+    # Added tags
     for tag_id in new_tags:
         if tag_id not in old_tags:
             changes['added_elements']['tags'].append(tag_id)
     
-    # Find modified tags (store IDs only)
-    for tag_id in new_tags:
-        if tag_id in old_tags and new_tags[tag_id] != old_tags[tag_id]:
-            changes['modified_elements']['tags'].append(tag_id)
-    
-    # Find deleted tags (store IDs only)
+    # Deleted tags
     for tag_id in old_tags:
         if tag_id not in new_tags:
             changes['deleted_elements']['tags'].append(tag_id)
     
-    # Same pattern for variables and triggers...
-    old_vars = {var.get('variableId'): var.get('fingerprint') for var in old_version.get('variable', [])}
-    new_vars = {var.get('variableId'): var.get('fingerprint') for var in new_version.get('variable', [])}
+    # Modified tags
+    for tag_id in old_tags:
+        if tag_id in new_tags:
+            old_tag = old_tags[tag_id]
+            new_tag = new_tags[tag_id]
+            if compare_elements(old_tag, new_tag):
+                changes['modified_elements']['tags'].append(tag_id)
     
-    # Find added variables (store IDs only)
-    for var_id in new_vars:
-        if var_id not in old_vars:
-            changes['added_elements']['variables'].append(var_id)
+    # Detect trigger changes
+    old_triggers = {trigger.get('triggerId'): trigger for trigger in old_version.get('trigger', [])}
+    new_triggers = {trigger.get('triggerId'): trigger for trigger in new_version.get('trigger', [])}
     
-    # Find modified variables (store IDs only)
-    for var_id in new_vars:
-        if var_id in old_vars and new_vars[var_id] != old_vars[var_id]:
-            changes['modified_elements']['variables'].append(var_id)
-    
-    # Find deleted variables (store IDs only)
-    for var_id in old_vars:
-        if var_id not in new_vars:
-            changes['deleted_elements']['variables'].append(var_id)
-    
-    old_triggers = {trigger.get('triggerId'): trigger.get('fingerprint') for trigger in old_version.get('trigger', [])}
-    new_triggers = {trigger.get('triggerId'): trigger.get('fingerprint') for trigger in new_version.get('trigger', [])}
-    
-    # Find added triggers (store IDs only)
+    # Added triggers
     for trigger_id in new_triggers:
         if trigger_id not in old_triggers:
             changes['added_elements']['triggers'].append(trigger_id)
     
-    # Find modified triggers (store IDs only)
-    for trigger_id in new_triggers:
-        if trigger_id in old_triggers and new_triggers[trigger_id] != old_triggers[trigger_id]:
-            changes['modified_elements']['triggers'].append(trigger_id)
-    
-    # Find deleted triggers (store IDs only)
+    # Deleted triggers
     for trigger_id in old_triggers:
         if trigger_id not in new_triggers:
             changes['deleted_elements']['triggers'].append(trigger_id)
     
+    # Modified triggers
+    for trigger_id in old_triggers:
+        if trigger_id in new_triggers:
+            old_trigger = old_triggers[trigger_id]
+            new_trigger = new_triggers[trigger_id]
+            if compare_elements(old_trigger, new_trigger):
+                changes['modified_elements']['triggers'].append(trigger_id)
+    
+    # Detect variable changes
+    old_variables = {variable.get('variableId'): variable for variable in old_version.get('variable', [])}
+    new_variables = {variable.get('variableId'): variable for variable in new_version.get('variable', [])}
+    
+    # Added variables
+    for variable_id in new_variables:
+        if variable_id not in old_variables:
+            changes['added_elements']['variables'].append(variable_id)
+    
+    # Deleted variables
+    for variable_id in old_variables:
+        if variable_id not in new_variables:
+            changes['deleted_elements']['variables'].append(variable_id)
+    
+    # Modified variables
+    for variable_id in old_variables:
+        if variable_id in new_variables:
+            old_variable = old_variables[variable_id]
+            new_variable = new_variables[variable_id]
+            if compare_elements(old_variable, new_variable):
+                changes['modified_elements']['variables'].append(variable_id)
+    
+    # SERVER CONTAINER: Detect client changes
+    if 'client' in old_version or 'client' in new_version:
+        old_clients = {client.get('clientId'): client for client in old_version.get('client', [])}
+        new_clients = {client.get('clientId'): client for client in new_version.get('client', [])}
+        
+        # Added clients
+        for client_id in new_clients:
+            if client_id not in old_clients:
+                changes['added_elements']['clients'].append(client_id)
+        
+        # Deleted clients
+        for client_id in old_clients:
+            if client_id not in new_clients:
+                changes['deleted_elements']['clients'].append(client_id)
+        
+        # Modified clients
+        for client_id in old_clients:
+            if client_id in new_clients:
+                old_client = old_clients[client_id]
+                new_client = new_clients[client_id]
+                if compare_elements(old_client, new_client):
+                    changes['modified_elements']['clients'].append(client_id)
+    
+    # SERVER CONTAINER: Detect transformation changes
+    if 'transformation' in old_version or 'transformation' in new_version:
+        old_transformations = {transformation.get('transformationId'): transformation 
+                               for transformation in old_version.get('transformation', [])}
+        new_transformations = {transformation.get('transformationId'): transformation 
+                               for transformation in new_version.get('transformation', [])}
+        
+        # Added transformations
+        for transformation_id in new_transformations:
+            if transformation_id not in old_transformations:
+                changes['added_elements']['transformations'].append(transformation_id)
+        
+        # Deleted transformations
+        for transformation_id in old_transformations:
+            if transformation_id not in new_transformations:
+                changes['deleted_elements']['transformations'].append(transformation_id)
+        
+        # Modified transformations
+        for transformation_id in old_transformations:
+            if transformation_id in new_transformations:
+                old_transformation = old_transformations[transformation_id]
+                new_transformation = new_transformations[transformation_id]
+                if compare_elements(old_transformation, new_transformation):
+                    changes['modified_elements']['transformations'].append(transformation_id)
+    
     return changes
 
 def summarize_changes(changes, container_name, container_version=None):
-    """Generate a summary of changes without using lookups."""
-    # Count changes for reporting
-    total_changes = sum([
-        len(changes['added_elements']['tags']),
-        len(changes['added_elements']['variables']), 
-        len(changes['added_elements']['triggers']),
-        len(changes['modified_elements']['tags']),
-        len(changes['modified_elements']['variables']),
-        len(changes['modified_elements']['triggers']),
-        len(changes['deleted_elements']['tags']),
-        len(changes['deleted_elements']['variables']),
-        len(changes['deleted_elements']['triggers'])
-    ])
+    """Print a summary of changes with element names."""
+    total_changes = sum(len(changes[change_type][element_type]) 
+                       for change_type in changes 
+                       for element_type in changes[change_type])
     
-    # Output change summary (simplified, no lookups)
     print(f"  Detected {total_changes} changes in container {container_name}")
     
-    # Log the changes - only count numbers, don't try to look up names
+    # Keep essential change summary but remove detailed element-by-element logging
     for change_type in ['added_elements', 'modified_elements', 'deleted_elements']:
-        for element_type in ['tags', 'variables', 'triggers']:
-            element_ids = changes[change_type][element_type]
-            if element_ids:
-                print(f"    {change_type.replace('_', ' ').title()}: {len(element_ids)} {element_type}")
-                
-                # Only include IDs without attempting lookups
-                for element_id in element_ids:
-                    print(f"      - ID: {element_id}")
+        changes_in_category = sum(len(changes[change_type][element_type]) for element_type in changes[change_type])
+        if changes_in_category > 0:
+            print(f"    {change_type.replace('_', ' ').title()}: ", end="")
+            
+            element_counts = []
+            for element_type in ['tags', 'triggers', 'variables', 'clients', 'transformations']:
+                element_count = len(changes[change_type][element_type])
+                if element_count > 0:
+                    element_counts.append(f"{element_count} {element_type}")
+            
+            print(", ".join(element_counts))
     
     return total_changes
 

@@ -79,11 +79,14 @@ def process_container(public_id, property_id, last_versions, analytics_service):
     
     # Check if the changes impact GA tracking
     has_impact, impact_descriptions = is_ga_impacted_by_changes(changes, latest_version)
+    # For impact descriptions, reduce detail level
     if has_impact:
         print(f"Changes impact Google Analytics - creating annotation")
-        print("Impact details:")
-        for i, desc in enumerate(impact_descriptions, 1):
+        # Limit to first 3 impact descriptions if there are many
+        for i, desc in enumerate(impact_descriptions[:3], 1):
             print(f"  {i}. {desc}")
+        if len(impact_descriptions) > 3:
+            print(f"  ... and {len(impact_descriptions) - 3} more impacts")
         
         # Create annotation in GA4
         try:
