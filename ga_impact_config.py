@@ -1,0 +1,34 @@
+"""
+Configuration file for GA impact detection.
+Add any GTM elements that should be considered as impacting Google Analytics.
+"""
+
+# Tags, variables, and triggers that always impact GA tracking (by name)
+# These are checked in addition to the automatic detection of GA tags
+GA_IMPACT_ELEMENTS = {
+    'tags': [
+        # Examples:
+        # 'Custom HTML - DataLayer Setup',
+        # 'Simo Ahava - Analytics Debugger',
+    ],
+    'variables': [
+        # Examples:
+        # 'Data Layer - GA Client ID',
+        # 'JS - Session ID',
+    ],
+    'triggers': [
+        # Examples:
+        # 'Custom Event - analytics_event',
+        # 'Form Submission - Newsletter',
+    ]
+}
+
+# If True, any change to Custom JavaScript variables will trigger a GA impact check
+CONSIDER_ALL_CJS_VARIABLES_IMPORTANT = False
+
+# If True, all Custom HTML tags will be considered GA impacting
+CONSIDER_ALL_CUSTOM_HTML_IMPORTANT = False
+
+# If True, will perform deep variable reference checking
+# This may be more thorough but slower for large containers
+ENABLE_CASCADE_REFERENCE_CHECKING = True
