@@ -103,7 +103,8 @@ def check_versions():
     # Load last processed versions
     last_versions = load_last_versions()
     
-    # List to keep track of changed containers
+    # Create a temporary dictionary to store version updates
+    version_updates = {}
     changed_containers = []
     
     # Process each container defined in the CSV mapping
@@ -137,8 +138,8 @@ def check_versions():
                 
             print(f"  Version change detected for {container_name}: from {previous_version_id} to {version_id}")
             
-            # Update the stored versions
-            last_versions[public_id] = {
+            # Store the update but don't apply it yet
+            version_updates[public_id] = {
                 "live_version": latest_version,
                 "old_version": previous_version
             }
@@ -146,21 +147,33 @@ def check_versions():
             # Add to list of changed containers
             changed_containers.append(public_id)
         else:
-            # First time seeing this container - just store the data
+            # First time seeing this container
             print(f"  Initial version detected for {container_name}: {version_id}")
-            last_versions[public_id] = {
+            version_updates[public_id] = {
                 "live_version": latest_version,
                 "old_version": None
             }
-    
-    # Save updated versions
-    save_last_versions(last_versions)
     
     # If any containers changed, call main.py
     if changed_containers:
         print(f"Found {len(changed_containers)} containers with version changes. Running main.py...")
         container_args = ",".join(changed_containers)
-        subprocess.run(["python", "main.py", "--containers", container_args])
+        
+        # Run main.py and check its exit code
+        result = subprocess.run(["python", "main.py", "--containers", container_args])
+        
+        # Only update last_versions.json if main.py was successful
+        if result.returncode == 0:
+            # Apply the updates to last_versions
+            for public_id, update_data in version_updates.items():
+                last_versions[public_id] = update_data
+            
+            # Save updated versions
+            save_last_versions(last_versions)
+            print("Updated last_versions.json with latest GTM container versions.")
+        else:
+            print("Error: main.py failed to process changes. Not updating last_versions.json.")
+            print("You can run the script again to retry processing these changes.")
     else:
         print("No container version changes detected. Exiting without running main.py.")
 
